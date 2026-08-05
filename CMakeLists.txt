@@ -17,14 +17,59 @@
 cmake_minimum_required (VERSION 3.23)
 
 # Mandatory call to project
-project(opm-upscaling C CXX Fortran)
+# opm-upscaling has no Fortran sources; Fortran is enabled only so that
+# FortranCInterface can detect the BLAS/LAPACK name mangling and write
+# FCMacros.h, which opm/porsol/common/blas_lapack.hpp hard-requires.
+#
+# Ask for the language only when a compiler for it actually exists, rather than
+# keying on the host OS: a Windows machine with Intel Fortran should get the
+# real header, and a Linux machine without gfortran should still configure.
+# opm-upscaling_language_hook writes a fallback FCMacros.h when it is absent.
+# Note: project() has not run yet, so use check_language(), not CMAKE_Fortran_COMPILER.
+include(CheckLanguage)
+check_language(Fortran)
+if(CMAKE_Fortran_COMPILER)
+  project(opm-upscaling C CXX Fortran)
+else()
+  project(opm-upscaling C CXX)
+endif()
 
 option(SIBLING_SEARCH "Search for other modules in sibling directories?" ON)
 option(INSTALL_BENCHMARKS "Install benchmark applications?" OFF)
 
 macro(opm-upscaling_language_hook)
-  include(FortranCInterface)
-  fortrancinterface_header(${PROJECT_BINARY_DIR}/FCMacros.h MACRO_NAMESPACE FC_)
+  if(CMAKE_Fortran_COMPILER)
+    include(FortranCInterface)
+    fortrancinterface_header(${PROJECT_BINARY_DIR}/FCMacros.h MACRO_NAMESPACE FC_)
+  else()
+    # Without a Fortran compiler FortranCInterface cannot detect the BLAS/LAPACK
+    # name mangling, but opm/porsol/common/blas_lapack.hpp hard-requires
+    # FCMacros.h (#error when it is missing). Generate a fallback that assumes
+    # the de-facto standard convention -- lowercase with a trailing underscore --
+    # used by gfortran-built BLAS/LAPACK (OpenBLAS, reference LAPACK) and also
+    # exported by MKL.
+    # Only write the fallback if the file does not exist yet, so that a
+    # hand-edited FCMacros.h (for a library with a different convention)
+    # survives reconfiguration.
+    if(NOT EXISTS ${PROJECT_BINARY_DIR}/FCMacros.h)
+      message(STATUS "No Fortran compiler available - writing fallback FCMacros.h "
+                     "assuming lowercase-with-underscore BLAS/LAPACK name mangling "
+                     "(gfortran/OpenBLAS/LAPACK/MKL convention). If linking BLAS/LAPACK "
+                     "fails with unresolved symbols like 'dgemm_', your library uses a "
+                     "different convention; edit ${PROJECT_BINARY_DIR}/FCMacros.h to match.")
+      file(WRITE ${PROJECT_BINARY_DIR}/FCMacros.h
+"#ifndef FC_HEADER_INCLUDED
+#define FC_HEADER_INCLUDED
+
+/* Fallback Fortran name mangling, generated without a Fortran compiler:
+   lowercase with trailing underscore (gfortran/OpenBLAS/LAPACK default). */
+#define FC_GLOBAL(name,NAME) name##_
+#define FC_GLOBAL_(name,NAME) name##_
+
+#endif
+")
+    endif()
+  endif()
 endmacro()
 
 macro(opm-upscaling_prereqs_hook)
