@@ -1,7 +1,12 @@
-# Eclipse input decks and grid files use '\n' line endings by specification
-# and are parsed byte-for-byte (no newline translation on Windows). Force LF
-# at checkout so that a clone with core.autocrlf=true on Windows does not
-# corrupt the test data.
+# Copyright 2026 SINTEF Digital, Mathematics & Cybernetics.
+#
+# Eclipse input decks and grid files are specified with '\n' line endings and
+# the parser reads them in binary. It does tolerate CRLF today -- '\r' counts as
+# a separator and is trimmed -- so this is defence in depth rather than a fix
+# for a known failure: it keeps a clone with core.autocrlf=true on Windows
+# byte-identical to one on Linux, so no future byte-exact reader (or a
+# checksum over a deck) can be surprised. It also matches the .gitattributes
+# in opm-common, opm-grid and opm-simulators.
 *.DATA    text eol=lf
 *.data    text eol=lf
 *.inc     text eol=lf
