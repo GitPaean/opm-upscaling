@@ -17,14 +17,45 @@
 cmake_minimum_required (VERSION 3.23)
 
 # Mandatory call to project
-project(opm-upscaling C CXX Fortran)
+# opm-upscaling has no Fortran sources; Fortran is enabled only so that
+# FortranCInterface can detect the BLAS/LAPACK name mangling and write
+# FCMacros.h, which opm/porsol/common/blas_lapack.hpp hard-requires.
+#
+# Ask for the language only when a compiler for it actually exists, rather than
+# keying on the host OS: a Windows machine with Intel Fortran should get the
+# real header, and a Linux machine without gfortran should still configure.
+# opm-upscaling_language_hook writes a fallback FCMacros.h whenever
+# FortranCInterface produces no usable result -- no compiler, or one it could
+# not link against the C toolchain.
+# Note: project() has not run yet, so use check_language(), not CMAKE_Fortran_COMPILER.
+include(CheckLanguage)
+check_language(Fortran)
+if(CMAKE_Fortran_COMPILER)
+  project(opm-upscaling C CXX Fortran)
+else()
+  project(opm-upscaling C CXX)
+endif()
 
 option(SIBLING_SEARCH "Search for other modules in sibling directories?" ON)
 option(INSTALL_BENCHMARKS "Install benchmark applications?" OFF)
 
 macro(opm-upscaling_language_hook)
-  include(FortranCInterface)
-  fortrancinterface_header(${PROJECT_BINARY_DIR}/FCMacros.h MACRO_NAMESPACE FC_)
+  if(CMAKE_Fortran_COMPILER)
+    include(FortranCInterface)
+    fortrancinterface_header(${PROJECT_BINARY_DIR}/FCMacros.h MACRO_NAMESPACE FC_)
+  endif()
+  # Two ways to end up without usable macros: no Fortran compiler at all, or a
+  # compiler FortranCInterface could not link against the C toolchain (MinGW
+  # gfortran on PATH with an MSVC/Ninja toolchain, say). The latter is reported
+  # as a status message rather than an error and leaves behind a header with no
+  # macros in it, which the __has_include() in opm/porsol/common/blas_lapack.hpp
+  # is happy to find, so test the result rather than the compiler.
+  # The fallback writer is opm-common's (OpmFCMacros.cmake), shared with
+  # opm-grid, which needs the same header for the same reason.
+  include(OpmFCMacros)
+  if(NOT FortranCInterface_GLOBAL_FOUND)
+    opm_write_fallback_fcmacros(${PROJECT_BINARY_DIR}/FCMacros.h)
+  endif()
 endmacro()
 
 macro(opm-upscaling_prereqs_hook)
