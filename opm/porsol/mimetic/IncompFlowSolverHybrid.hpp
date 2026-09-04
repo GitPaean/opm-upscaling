@@ -1395,7 +1395,8 @@ namespace Opm {
 
             // Regularize the matrix (only for pure Neumann problems...)
             if (do_regularization_) {
-                S_[0][0] *= 2;
+                // Scalar{2}, not 2: an int argument makes operator*= ambiguous (MSVC C2666).
+                S_[0][0] *= Scalar{2};
             }
             Adapter opS(S_);
 
@@ -1493,7 +1494,7 @@ namespace Opm {
             if (!same_matrix) {
                 // Regularize the matrix (only for pure Neumann problems...)
                 if (do_regularization_) {
-                    S_[0][0] *= 2;
+                    S_[0][0] *= Scalar{2};
                 }
                 opS_.reset(new Operator(S_));
 
@@ -1561,7 +1562,7 @@ namespace Opm {
             if (!same_matrix) {
                 // Regularize the matrix (only for pure Neumann problems...)
                 if (do_regularization_) {
-                    S_[0][0] *= 2;
+                    S_[0][0] *= Scalar{2};
                 }
                 opS_.reset(new Operator(S_));
 
@@ -1625,7 +1626,7 @@ namespace Opm {
             if (!same_matrix) {
                 // Regularize the matrix (only for pure Neumann problems...)
                 if (do_regularization_) {
-                    S_[0][0] *= 2;
+                    S_[0][0] *= Scalar{2};
                 }
                 opS_.reset(new Operator(S_));
 
